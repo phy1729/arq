@@ -20,8 +20,8 @@ async def shutdown(ctx):
     await ctx['session'].aclose()
 
 async def main():
-    redis = await create_pool(RedisSettings())
-    await redis.enqueue_job('download_content', 'https://httpbin.org/status/503')
+    async with create_pool(RedisSettings()) as redis:
+        await redis.enqueue_job('download_content', 'https://httpbin.org/status/503')
 
 class WorkerSettings:
     functions = [download_content]

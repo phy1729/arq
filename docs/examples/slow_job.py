@@ -7,8 +7,8 @@ async def the_task(ctx):
     await asyncio.sleep(5)
 
 async def main():
-    redis = await create_pool(RedisSettings())
-    await redis.enqueue_job('the_task')
+    async with create_pool(RedisSettings()) as redis:
+        await redis.enqueue_job('the_task')
 
 class WorkerSettings:
     functions = [the_task]

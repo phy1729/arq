@@ -20,9 +20,9 @@ async def shutdown(ctx):
     await ctx['session'].aclose()
 
 async def main():
-    redis = await create_pool(REDIS_SETTINGS)
-    for url in ('https://facebook.com', 'https://microsoft.com', 'https://github.com'):
-        await redis.enqueue_job('download_content', url)
+    async with create_pool(REDIS_SETTINGS) as redis:
+        for url in ('https://facebook.com', 'https://microsoft.com', 'https://github.com'):
+            await redis.enqueue_job('download_content', url)
 
 # WorkerSettings defines the settings to use when creating the work,
 # It's used by the arq CLI.

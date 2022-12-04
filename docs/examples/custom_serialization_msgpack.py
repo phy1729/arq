@@ -16,7 +16,8 @@ async def main():
         job_serializer=msgpack.packb,
         job_deserializer=lambda b: msgpack.unpackb(b, raw=False),
     )
-    await redis.enqueue_job('the_task')
+    async with redis:
+        await redis.enqueue_job('the_task')
 
 
 class WorkerSettings:
