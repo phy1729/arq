@@ -11,7 +11,7 @@ import msgpack
 import pytest
 import redis.exceptions
 
-from arq.connections import ArqRedis, RedisSettings
+from arq.connections import ArqRedis, RedisSettings, create_pool
 from arq.constants import abort_jobs_ss, default_queue_name, expires_extra_ms, health_check_key_suffix, job_key_prefix
 from arq.jobs import Job, JobStatus
 from arq.worker import (
@@ -480,15 +480,15 @@ async def test_log_health_check(arq_redis: ArqRedis, worker, caplog):
     assert 'recording health' in caplog.text
 
 
-async def test_remain_keys(test_redis_settings: RedisSettings, arq_redis: ArqRedis, worker, create_pool):
-    redis2 = await create_pool(test_redis_settings)
-    await arq_redis.enqueue_job('foobar', _job_id='testing')
-    assert sorted(await redis2.keys('*')) == [b'arq:job:testing', b'arq:queue']
-    worker: Worker = worker(functions=[foobar])
-    await worker.main()
-    assert sorted(await redis2.keys('*')) == [b'arq:queue:health-check', b'arq:result:testing']
-    await worker.close()
-    assert sorted(await redis2.keys('*')) == [b'arq:result:testing']
+async def test_remain_keys(test_redis_settings: RedisSettings, arq_redis: ArqRedis, worker):
+    async with await create_pool(test_redis_settings) as redis2:
+        await arq_redis.enqueue_job('foobar', _job_id='testing')
+        assert sorted(await redis2.keys('*')) == [b'arq:job:testing', b'arq:queue']
+        worker: Worker = worker(functions=[foobar])
+        await worker.main()
+        assert sorted(await redis2.keys('*')) == [b'arq:queue:health-check', b'arq:result:testing']
+        await worker.close()
+        assert sorted(await redis2.keys('*')) == [b'arq:result:testing']
 
 
 async def test_remain_keys_no_results(arq_redis: ArqRedis, worker):

@@ -116,12 +116,12 @@ async def test_enqueue_job_alt_queue(arq_redis: ArqRedis, worker):
 
 async def test_enqueue_job_nondefault_queue(test_redis_settings: RedisSettings, worker):
     """Test initializing arq_redis with a queue name, and the worker using it."""
-    arq_redis = await create_pool(test_redis_settings, default_queue_name='test_queue')
-    await test_enqueue_job(
-        arq_redis,
-        lambda functions, **_: worker(functions=functions, arq_redis=arq_redis, queue_name=None),
-        queue_name=None,
-    )
+    async with await create_pool(test_redis_settings, default_queue_name='test_queue') as arq_redis:
+        await test_enqueue_job(
+            arq_redis,
+            lambda functions, **_: worker(functions=functions, arq_redis=arq_redis, queue_name=None),
+            queue_name=None,
+        )
 
 
 async def test_cant_unpickle_at_all():

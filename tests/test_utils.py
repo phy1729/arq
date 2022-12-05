@@ -10,7 +10,7 @@ from redis.asyncio import ConnectionError, ResponseError
 
 import arq.typing
 import arq.utils
-from arq.connections import RedisSettings, log_redis_info
+from arq.connections import RedisSettings, create_pool, log_redis_info
 
 from .conftest import SetEnv
 
@@ -27,50 +27,53 @@ def test_settings_changed():
     ) == str(settings)
 
 
-async def test_redis_timeout(mocker, create_pool):
+async def test_redis_timeout(mocker):
     mocker.spy(arq.utils.asyncio, 'sleep')
     with pytest.raises(ConnectionError):
-        await create_pool(RedisSettings(port=0, conn_retry_delay=0))
+        async with await create_pool(RedisSettings(port=0, conn_retry_delay=0)):
+            pass
     assert arq.utils.asyncio.sleep.call_count == 5
 
 
-async def test_redis_timeout_and_retry_many_times(mocker, create_pool):
+async def test_redis_timeout_and_retry_many_times(mocker):
     mocker.spy(arq.utils.asyncio, 'sleep')
     default_recursion_limit = sys.getrecursionlimit()
     sys.setrecursionlimit(100)
     try:
         with pytest.raises(ConnectionError):
-            await create_pool(RedisSettings(port=0, conn_retry_delay=0, conn_retries=150))
+            async with await create_pool(RedisSettings(port=0, conn_retry_delay=0, conn_retries=150)):
+                pass
         assert arq.utils.asyncio.sleep.call_count == 150
     finally:
         sys.setrecursionlimit(default_recursion_limit)
 
 
 @pytest.mark.skip(reason='this breaks many other tests as low level connections remain after failed connection')
-async def test_redis_sentinel_failure(create_pool, cancel_remaining_task, mocker):
+async def test_redis_sentinel_failure(cancel_remaining_task, mocker):
     settings = RedisSettings()
     settings.host = [('localhost', 6379), ('localhost', 6379)]
     settings.sentinel = True
     with pytest.raises(ResponseError, match='unknown command `SENTINEL`'):
-        await create_pool(settings)
+        async with await create_pool(settings):
+            pass
 
 
-async def test_redis_success_log(test_redis_settings: RedisSettings, caplog, create_pool):
+async def test_redis_success_log(test_redis_settings: RedisSettings, caplog):
     caplog.set_level(logging.INFO)
-    pool = await create_pool(test_redis_settings)
-    assert 'redis connection successful' not in [r.message for r in caplog.records]
-    await pool.close(close_connection_pool=True)
+    async with await create_pool(test_redis_settings) as pool:
+        assert 'redis connection successful' not in [r.message for r in caplog.records]
+        await pool.close(close_connection_pool=True)
 
-    pool = await create_pool(test_redis_settings, retry=1)
-    assert 'redis connection successful' in [r.message for r in caplog.records]
-    await pool.close(close_connection_pool=True)
+    async with await create_pool(test_redis_settings, retry=1) as pool:
+        assert 'redis connection successful' in [r.message for r in caplog.records]
+        await pool.close(close_connection_pool=True)
 
 
-async def test_redis_log(test_redis_settings: RedisSettings, create_pool):
-    redis = await create_pool(test_redis_settings)
-    await redis.flushall()
-    await redis.set(b'a', b'1')
-    await redis.set(b'b', b'2')
+async def test_redis_log(test_redis_settings: RedisSettings):
+    async with await create_pool(test_redis_settings) as redis:
+        await redis.flushall()
+        await redis.set(b'a', b'1')
+        await redis.set(b'b', b'2')
 
     log_msgs = []
 

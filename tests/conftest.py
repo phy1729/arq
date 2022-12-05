@@ -11,7 +11,7 @@ from redis.asyncio.retry import Retry
 from redis.backoff import NoBackoff
 from testcontainers.redis import RedisContainer
 
-from arq.connections import ArqRedis, RedisSettings, create_pool
+from arq.connections import ArqRedis, RedisSettings
 from arq.worker import Worker
 
 
@@ -127,20 +127,6 @@ async def worker_retry(arq_redis_retry):
 
     if worker_retry_:
         await worker_retry_.close()
-
-
-@pytest.fixture(name='create_pool')
-async def fix_create_pool(loop):
-    pools = []
-
-    async def create_pool_(settings, *args, **kwargs):
-        pool = await create_pool(settings, *args, **kwargs)
-        pools.append(pool)
-        return pool
-
-    yield create_pool_
-
-    await asyncio.gather(*[p.close(close_connection_pool=True) for p in pools])
 
 
 @pytest.fixture(name='cancel_remaining_task')
